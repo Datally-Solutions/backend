@@ -17,5 +17,5 @@ jobs:
     with:
       working_directory: "."
       state_prefix: "backend"
-      has_tfvars: "true"
+      has_tfvars: "false"
     secrets: inherit
