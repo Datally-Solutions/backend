@@ -1,0 +1,21 @@
+name: Terraform Infra
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  terraform:
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+    uses: Datally-Solutions/cicd/.github/workflows/reusable-terraform.yml@main
+    with:
+      working_directory: "."
+      state_prefix: "backend"
+      has_tfvars: "true"
+    secrets: inherit
