@@ -9,7 +9,7 @@ terraform {
   }
 
   backend "gcs" {
-    bucket = "YOUR_PROJECT_ID-tfstate"
+    bucket = "cat-litter-monitor-tfstate"
     prefix = "backend"
   }
 }
