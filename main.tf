@@ -79,7 +79,7 @@ resource "google_storage_bucket" "functions_source" {
 # -------------------------------------------------------
 data "archive_file" "ingest_source" {
   type        = "zip"
-  source_dir  = "${path.module}/functions/ingest"
+  source_dir  = "${path.module}/function/ingest"
   output_path = "${path.module}/tmp/ingest.zip"
 }
 
