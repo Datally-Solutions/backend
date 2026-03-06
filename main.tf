@@ -109,8 +109,10 @@ resource "google_cloudfunctions2_function" "ingest" {
   }
 
   service_config {
-    max_instance_count    = 10
+    max_instance_count    = 1
     min_instance_count    = 0
+    max_instance_request_concurrency = 1
+    ingress_settings               = "ALLOW_ALL"
     available_memory      = "256M"
     timeout_seconds       = 30
     service_account_email = google_service_account.function_sa.email
@@ -131,9 +133,10 @@ resource "google_cloudfunctions2_function" "ingest" {
 }
 
 # Allow unauthenticated calls
-#resource "google_cloud_run_service_iam_member" "ingest_public" {
- # location = var.GCP_REGION
-  #service  = google_cloudfunctions2_function.ingest.name
-  #role     = "roles/run.invoker"
-  #member   = "allUsers"
-#}
+# Public invoke required for ESP32 — security handled by X-Ingest-Token validation
+resource "google_cloud_run_service_iam_member" "ingest_public" {
+  location = var.GCP_REGION
+  service  = google_cloudfunctions2_function.ingest.name
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+}

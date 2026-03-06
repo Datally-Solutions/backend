@@ -2,6 +2,7 @@ import os
 import json
 import logging
 from datetime import datetime, timezone
+import hmac
 
 import functions_framework
 from google.cloud import bigquery
@@ -19,8 +20,14 @@ TABLE_REF  = f"{PROJECT_ID}.{DATASET}.{TABLE}"
 
 
 def _validate_token(request) -> bool:
-    token = request.headers.get("X-Ingest-Token") or request.args.get("token")
-    return token == TOKEN
+    token = (
+        request.headers.get("X-Ingest-Token")
+        or request.args.get("token")
+    )
+    if not token:
+        return False
+    # Use hmac.compare_digest to prevent timing attacks
+    return hmac.compare_digest(token, TOKEN)
 
 
 def _parse_payload(request) -> dict | None:
