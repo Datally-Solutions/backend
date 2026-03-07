@@ -2,6 +2,7 @@ import os
 import json
 import logging
 from datetime import datetime, timezone, timedelta
+import google.cloud.logging
 
 import functions_framework
 from google.cloud import bigquery, firestore
@@ -9,7 +10,7 @@ import firebase_admin
 from firebase_admin import messaging
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+google.cloud.logging.Client().setup_logging()
 
 PROJECT_ID = os.environ["PROJECT_ID"]
 DATASET    = os.environ["BIGQUERY_DATASET"]
@@ -134,7 +135,7 @@ def _write_alert(household_id: str, cat_name: str, alert_type: str,
             "acknowledged": False,
             "source":       "health_checker",
         })
-    logger.info(f"Alert written: [{severity}] {title}")
+    logging.info(f"Alert written: [{severity}] {title}")
 
 
 def _send_fcm(member_uids: list[str], title: str, description: str, severity: str):
@@ -170,9 +171,9 @@ def _send_fcm(member_uids: list[str], title: str, description: str, severity: st
                     )
                 ),
             ))
-            logger.info(f"FCM sent to uid {uid}")
+            logging.info(f"FCM sent to uid {uid}")
         except Exception as e:
-            logger.error(f"FCM error for uid {uid}: {e}")
+            logging.error(f"FCM error for uid {uid}: {e}")
 
 
 def _process_alert(cat: dict, alert_type: str, title: str, description: str, severity: str):
@@ -181,7 +182,7 @@ def _process_alert(cat: dict, alert_type: str, title: str, description: str, sev
     cat_name     = cat["name"]
 
     if _alert_already_sent_today(household_id, cat_name, alert_type):
-        logger.info(f"Alert [{alert_type}] already sent today for {cat_name}, skipping.")
+        logging.info(f"Alert [{alert_type}] already sent today for {cat_name}, skipping.")
         return
 
     _write_alert(household_id, cat_name, alert_type, title, description, severity)
@@ -193,9 +194,9 @@ def _process_alert(cat: dict, alert_type: str, title: str, description: str, sev
 def check_no_pee(cat: dict):
     hours = _hours_since_last_action(cat["name"], PEE_ACTIONS)
     if hours is None:
-        logger.info(f"{cat['name']}: no pee data found, skipping.")
+        logging.info(f"{cat['name']}: no pee data found, skipping.")
         return
-    logger.info(f"{cat['name']}: last pee {hours:.1f}h ago")
+    logging.info(f"{cat['name']}: last pee {hours:.1f}h ago")
     if hours >= NO_PEE_HOURS:
         _process_alert(
             cat,
@@ -214,9 +215,9 @@ def check_no_pee(cat: dict):
 def check_no_poop(cat: dict):
     hours = _hours_since_last_action(cat["name"], POOP_ACTIONS)
     if hours is None:
-        logger.info(f"{cat['name']}: no poop data found, skipping.")
+        logging.info(f"{cat['name']}: no poop data found, skipping.")
         return
-    logger.info(f"{cat['name']}: last poop {hours:.1f}h ago")
+    logging.info(f"{cat['name']}: last poop {hours:.1f}h ago")
     if hours >= NO_POOP_HOURS:
         _process_alert(
             cat,
@@ -238,13 +239,13 @@ def check_weight_change(cat: dict):
     previous_weight = _get_avg_weight(cat["name"], days_ago_start=7, days_ago_end=14)
 
     if recent_weight is None or previous_weight is None:
-        logger.info(f"{cat['name']}: insufficient weight data, skipping.")
+        logging.info(f"{cat['name']}: insufficient weight data, skipping.")
         return
 
     change_pct = abs(recent_weight - previous_weight) / previous_weight * 100
     direction  = "perdu" if recent_weight < previous_weight else "pris"
 
-    logger.info(
+    logging.info(
         f"{cat['name']}: weight {previous_weight:.2f}kg → {recent_weight:.2f}kg "
         f"({change_pct:.1f}% change)"
     )
@@ -270,24 +271,24 @@ def check_weight_change(cat: dict):
 @functions_framework.http
 def health_checker(request):
     """Triggered by Cloud Scheduler via HTTP."""
-    logger.info("Health checker started")
+    logging.info("Health checker started")
 
     cats = _get_cats()
     if not cats:
-        logger.warning("No cats found in Firestore households")
+        logging.warning("No cats found in Firestore households")
         return {"status": "ok", "message": "No cats found"}, 200
 
     results = []
     for cat in cats:
-        logger.info(f"Checking health for {cat['name']} (household: {cat['household_id']})")
+        logging.info(f"Checking health for {cat['name']} (household: {cat['household_id']})")
         try:
             check_no_pee(cat)
             check_no_poop(cat)
             check_weight_change(cat)
             results.append({"cat": cat["name"], "status": "checked"})
         except Exception as e:
-            logger.error(f"Error checking {cat['name']}: {e}")
+            logging.error(f"Error checking {cat['name']}: {e}")
             results.append({"cat": cat["name"], "status": "error", "error": str(e)})
 
-    logger.info(f"Health checker done. Results: {results}")
+    logging.info(f"Health checker done. Results: {results}")
     return {"status": "ok", "results": results}, 200
