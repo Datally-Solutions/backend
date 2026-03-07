@@ -5,9 +5,10 @@ from datetime import datetime, timezone
 import hmac
 import functions_framework
 from google.cloud import bigquery, firestore
+import google.cloud.logging
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+google.cloud.logging.Client().setup_logging()
 
 PROJECT_ID   = os.environ["PROJECT_ID"]
 DATASET      = os.environ["BIGQUERY_DATASET"]
@@ -39,7 +40,7 @@ def _get_or_create_household(device_id: str) -> str:
         "cat_names":    [],
         "created_at":   firestore.SERVER_TIMESTAMP,
     })
-    logger.info(f"Created new household {ref[1].id} for device {device_id}")
+    logging.info(f"Created new household {ref[1].id} for device {device_id}")
     return ref[1].id
 
 
@@ -69,7 +70,7 @@ def _parse_payload(request) -> dict | None:
             "alerte":     str(data.get("alerte", "")) or None,
         }
     except (KeyError, ValueError, TypeError) as e:
-        logger.error(f"Payload parsing error: {e}")
+        logging.error(f"Payload parsing error: {e}")
         return None
 
 
@@ -129,7 +130,7 @@ def _write_to_firestore(row: dict, household_id: str):
             "severity":     "warning",
             "acknowledged": False,
         })
-        logger.info(f"Health alert written for {row['chat']}: {alerte}")
+        logging.info(f"Health alert written for {row['chat']}: {alerte}")
 
 
 @functions_framework.http
@@ -143,13 +144,13 @@ def ingest_litter_event(request):
 
     # Auth
     if not _validate_token(request):
-        logger.warning("Unauthorized request")
+        logging.warning("Unauthorized request")
         return {"error": "Unauthorized"}, 401
 
     # Parse
     row = _parse_payload(request)
     if not row:
-        logger.error("Invalid payload")
+        logging.error("Invalid payload")
         return {"error": "Invalid payload"}, 400
 
     # ── Resolve household from device_id ─────────────────────────────────────
@@ -158,14 +159,14 @@ def ingest_litter_event(request):
     # ── Write to BigQuery ─────────────────────────────────────────────────────
     errors = BQ_CLIENT.insert_rows_json(TABLE_REF, [row])
     if errors:
-        logger.error(f"BigQuery insert errors: {errors}")
+        logging.error(f"BigQuery insert errors: {errors}")
         return {"error": "BigQuery insert failed", "details": errors}, 500
 
     # ── Write to Firestore ────────────────────────────────────────────────────
     try:
         _write_to_firestore(row, household_id)
     except Exception as e:
-        logger.error(f"Firestore write error: {e}")
+        logging.error(f"Firestore write error: {e}")
 
-    logger.info(f"Event inserted: {row['chat']} - {row['action']} (household: {household_id})")
+    logging.info(f"Event inserted: {row['chat']} - {row['action']} (household: {household_id})")
     return {"status": "ok", "timestamp": row["timestamp"], "household_id": household_id}, 200
