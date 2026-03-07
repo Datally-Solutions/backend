@@ -213,7 +213,7 @@ resource "google_cloud_run_service_iam_member" "scheduler_invoker" {
 
 resource "google_cloud_scheduler_job" "health_check_daily" {
   name      = "health-check-daily"
-  region    = "europe-west1" #not available in paris
+  region    = "europe-west1"
   schedule  = "0 9 * * *"
   time_zone = "Europe/Paris"
 
@@ -224,6 +224,7 @@ resource "google_cloud_scheduler_job" "health_check_daily" {
 
     oidc_token {
       service_account_email = google_service_account.scheduler_sa.email
+      audience              = google_cloudfunctions2_function.health_checker.service_config[0].uri
     }
   }
 
