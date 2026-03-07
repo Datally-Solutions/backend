@@ -15,7 +15,7 @@ TABLE        = os.environ["BIGQUERY_TABLE"]
 TOKEN        = os.environ["INGEST_TOKEN"]
 
 BQ_CLIENT  = bigquery.Client()
-FS_CLIENT  = firestore.Client()
+FS_CLIENT  = firestore.Client(database="cat-litter-monitor-firestore")
 TABLE_REF  = f"{PROJECT_ID}.{DATASET}.{TABLE}"
 
 
