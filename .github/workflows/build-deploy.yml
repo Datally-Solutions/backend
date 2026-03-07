@@ -8,14 +8,36 @@ on:
   workflow_dispatch:
 
 jobs:
+  check-api-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.filter.outputs.api }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            api:
+              - 'api/**'
+              - 'cloudbuild.api.yaml'
+
   build-api:
     name: Build API
+    needs: check-api-changes
+    if: needs.check-api-changes.outputs.changed == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write
+    outputs:
+      image_tag: ${{ steps.set-tag.outputs.tag }}   # ← expose the SHA
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set image tag
+        id: set-tag
+        run: echo "tag=${GITHUB_SHA::8}" >> $GITHUB_OUTPUT
 
       - id: auth
         uses: google-github-actions/auth@v2
@@ -26,7 +48,6 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
-      # Upload source + build on Cloud Build
       - name: Submit Cloud Build
         run: |
           gcloud builds submit . \
@@ -37,7 +58,8 @@ jobs:
 
   terraform:
     name: Terraform Infra
-    needs: build-api
+    needs: [check-api-changes, build-api]
+    if: always()
     permissions:
       contents: read
       id-token: write
@@ -47,4 +69,8 @@ jobs:
       working_directory: "."
       state_prefix: "backend"
       has_tfvars: "false"
+      extra_vars: >-
+        ${{ needs.check-api-changes.outputs.changed == 'true'
+          && format('-var=api_image_tag={0}', needs.build-api.outputs.image_tag)
+          || '' }}
     secrets: inherit

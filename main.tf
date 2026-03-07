@@ -246,7 +246,7 @@ resource "google_cloud_run_v2_service" "litter_api" {
     service_account = google_service_account.function_sa.email
 
     containers {
-      image = "${var.GCP_REGION}-docker.pkg.dev/${var.GCP_PROJECT_ID}/${var.GCP_PROJECT_ID}-registry-docker/litter-api:latest"
+      image = "${var.GCP_REGION}-docker.pkg.dev/${var.GCP_PROJECT_ID}/${var.GCP_PROJECT_ID}-registry-docker/litter-api:${var.api_image_tag}"
 
       ports {
         container_port = 8080

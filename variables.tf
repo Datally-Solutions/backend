@@ -20,3 +20,8 @@ variable "firestore_database" {
   description = "Firestore database name"
   default     = "cat-litter-monitor-firestore"
 }
+
+variable "api_image_tag" {
+  type    = string
+  default = "latest"
+}
