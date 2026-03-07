@@ -42,6 +42,8 @@ resource "google_project_iam_custom_role" "function_role" {
     "bigquery.tables.get",
     "bigquery.tables.updateData",
     "bigquery.jobs.create",
+    "bigquery.tables.getData",
+    "bigquery.jobs.get",   
 
     # Firestore
     "datastore.entities.create",
