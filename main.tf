@@ -44,10 +44,10 @@ resource "google_project_iam_custom_role" "function_role" {
     "bigquery.jobs.create",
 
     #firestore
-    "datastore.documents.create",
-    "datastore.documents.update",
-    "datastore.documents.get",
-    "datastore.documents.list",
+    "datastore.entities.create",
+    "datastore.entities.update",
+    "datastore.entities.get",
+    "datastore.entities.list",
 
     # Secret Manager — read secrets only
     "secretmanager.versions.access",
