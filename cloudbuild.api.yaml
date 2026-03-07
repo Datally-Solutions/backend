@@ -1,5 +1,4 @@
 steps:
-  # Build and push using Cloud Build's built-in Docker support
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'build'
@@ -7,7 +6,9 @@ steps:
       - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:${SHORT_SHA}'
       - '-t'
       - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:latest'
-      - './api'
+      - '-f'
+      - 'api/Dockerfile'   # ← explicit Dockerfile path
+      - './api'            # ← build context is the api/ folder
 
   - name: 'gcr.io/cloud-builders/docker'
     args:
@@ -15,7 +16,6 @@ steps:
       - '--all-tags'
       - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}'
 
-  # Deploy to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args:

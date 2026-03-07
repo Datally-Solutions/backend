@@ -26,12 +26,13 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
+      # Upload source + build on Cloud Build
       - name: Submit Cloud Build
         run: |
-          gcloud builds submit \
+          gcloud builds submit . \
             --config=cloudbuild.api.yaml \
             --project=${{ secrets.GCP_PROJECT_ID }} \
-            --substitutions=SHORT_SHA=${GITHUB_SHA::8} \
+            --substitutions=SHORT_SHA=${GITHUB_SHA::8}
 
   terraform:
     name: Terraform Infra
