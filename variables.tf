@@ -14,3 +14,9 @@ variable "ingest_token_secret_id" {
   type        = string
   default     = "litter-ingest-token"
 }
+
+variable "firestore_database" {
+  type        = string
+  description = "Firestore database name"
+  default     = "cat-litter-monitor-firestore"
+}

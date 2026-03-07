@@ -20,7 +20,7 @@ provider "google" {
 }
 
 # -------------------------------------------------------
-# Service Account for Cloud Function
+# Service Account for Cloud Functions
 # -------------------------------------------------------
 resource "google_service_account" "function_sa" {
   account_id   = "litter-function-sa"
@@ -28,22 +28,22 @@ resource "google_service_account" "function_sa" {
 }
 
 # -------------------------------------------------------
-# Custom Role for Cloud Function
+# Custom Role for Cloud Functions
 # -------------------------------------------------------
 resource "google_project_iam_custom_role" "function_role" {
   role_id     = "litterFunctionRole"
   title       = "Cat Litter Function Role"
-  description = "Minimal permissions for the litter ingest Cloud Function"
+  description = "Minimal permissions for the litter Cloud Functions"
   stage       = "GA"
 
   permissions = [
-    # BigQuery — insert rows only
+    # BigQuery — insert + query
     "bigquery.datasets.get",
     "bigquery.tables.get",
     "bigquery.tables.updateData",
     "bigquery.jobs.create",
 
-    #firestore
+    # Firestore
     "datastore.entities.create",
     "datastore.entities.update",
     "datastore.entities.get",
@@ -52,11 +52,14 @@ resource "google_project_iam_custom_role" "function_role" {
     # Secret Manager — read secrets only
     "secretmanager.versions.access",
 
-    # Logging — write logs
+    # Logging
     "logging.logEntries.create",
 
-    # Monitoring — write metrics
+    # Monitoring
     "monitoring.timeSeries.create",
+
+    # FCM (Firebase Messaging) via Cloud Messaging API
+    "cloudmessaging.messages.create",
   ]
 }
 
@@ -67,7 +70,7 @@ resource "google_project_iam_member" "function_custom_role" {
 }
 
 # -------------------------------------------------------
-# GCS bucket for function source
+# GCS bucket for function sources
 # -------------------------------------------------------
 resource "google_storage_bucket" "functions_source" {
   name                        = "${var.GCP_PROJECT_ID}-functions-source"
@@ -81,11 +84,11 @@ resource "google_storage_bucket" "functions_source" {
 }
 
 # -------------------------------------------------------
-# Zip and upload function source
+# INGEST FUNCTION
 # -------------------------------------------------------
 data "archive_file" "ingest_source" {
   type        = "zip"
-  source_dir  = "${path.module}/function/ingest"
+  source_dir  = "${path.module}/functions/ingest"
   output_path = "${path.module}/tmp/ingest.zip"
 }
 
@@ -95,9 +98,6 @@ resource "google_storage_bucket_object" "ingest_source" {
   source = data.archive_file.ingest_source.output_path
 }
 
-# -------------------------------------------------------
-# Cloud Function
-# -------------------------------------------------------
 resource "google_cloudfunctions2_function" "ingest" {
   name     = "litter-ingest"
   location = var.GCP_REGION
@@ -115,18 +115,19 @@ resource "google_cloudfunctions2_function" "ingest" {
   }
 
   service_config {
-    max_instance_count    = 1
-    min_instance_count    = 0
+    max_instance_count               = 1
+    min_instance_count               = 0
     max_instance_request_concurrency = 1
-    ingress_settings               = "ALLOW_ALL"
-    available_memory      = "256M"
-    timeout_seconds       = 30
-    service_account_email = google_service_account.function_sa.email
+    ingress_settings                 = "ALLOW_ALL"
+    available_memory                 = "256M"
+    timeout_seconds                  = 30
+    service_account_email            = google_service_account.function_sa.email
 
     environment_variables = {
-      PROJECT_ID       = var.GCP_PROJECT_ID
-      BIGQUERY_DATASET = "litiere"
-      BIGQUERY_TABLE   = "events"
+      PROJECT_ID          = var.GCP_PROJECT_ID
+      BIGQUERY_DATASET    = "litiere"
+      BIGQUERY_TABLE      = "events"
+      FIRESTORE_DATABASE  = var.firestore_database
     }
 
     secret_environment_variables {
@@ -138,11 +139,93 @@ resource "google_cloudfunctions2_function" "ingest" {
   }
 }
 
-# Allow unauthenticated calls
-# Public invoke required for ESP32 — security handled by X-Ingest-Token validation
+# Allow unauthenticated calls (security via X-Ingest-Token)
 resource "google_cloud_run_service_iam_member" "ingest_public" {
   location = var.GCP_REGION
   service  = google_cloudfunctions2_function.ingest.name
   role     = "roles/run.invoker"
   member   = "allUsers"
+}
+
+# -------------------------------------------------------
+# HEALTH CHECKER FUNCTION
+# -------------------------------------------------------
+data "archive_file" "health_checker_source" {
+  type        = "zip"
+  source_dir  = "${path.module}/functions/health_checker"
+  output_path = "${path.module}/tmp/health_checker.zip"
+}
+
+resource "google_storage_bucket_object" "health_checker_source" {
+  name   = "health_checker/health_checker-${data.archive_file.health_checker_source.output_md5}.zip"
+  bucket = google_storage_bucket.functions_source.name
+  source = data.archive_file.health_checker_source.output_path
+}
+
+resource "google_cloudfunctions2_function" "health_checker" {
+  name     = "litter-health-checker"
+  location = var.GCP_REGION
+
+  build_config {
+    runtime     = "python311"
+    entry_point = "health_checker"
+
+    source {
+      storage_source {
+        bucket = google_storage_bucket.functions_source.name
+        object = google_storage_bucket_object.health_checker_source.name
+      }
+    }
+  }
+
+  service_config {
+    max_instance_count    = 1
+    min_instance_count    = 0
+    available_memory      = "256M"
+    timeout_seconds       = 120
+    service_account_email = google_service_account.function_sa.email
+
+    environment_variables = {
+      PROJECT_ID         = var.GCP_PROJECT_ID
+      BIGQUERY_DATASET   = "litiere"
+      BIGQUERY_TABLE     = "events"
+      FIRESTORE_DATABASE = var.firestore_database
+    }
+  }
+}
+
+# -------------------------------------------------------
+# CLOUD SCHEDULER — health check every day at 9am Paris
+# -------------------------------------------------------
+resource "google_service_account" "scheduler_sa" {
+  account_id   = "health-checker-scheduler"
+  display_name = "Health Checker Scheduler SA"
+}
+
+resource "google_cloud_run_service_iam_member" "scheduler_invoker" {
+  location = var.GCP_REGION
+  service  = google_cloudfunctions2_function.health_checker.name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${google_service_account.scheduler_sa.email}"
+}
+
+resource "google_cloud_scheduler_job" "health_check_daily" {
+  name      = "health-check-daily"
+  region    = var.GCP_REGION
+  schedule  = "0 9 * * *"
+  time_zone = "Europe/Paris"
+
+  http_target {
+    uri         = google_cloudfunctions2_function.health_checker.service_config[0].uri
+    http_method = "POST"
+    body        = base64encode("{}")
+
+    oidc_token {
+      service_account_email = google_service_account.scheduler_sa.email
+    }
+  }
+
+  retry_config {
+    retry_count = 3
+  }
 }
