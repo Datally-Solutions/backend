@@ -32,6 +32,7 @@ jobs:
           gcloud builds submit . \
             --config=cloudbuild.api.yaml \
             --project=${{ secrets.GCP_PROJECT_ID }} \
+            --region=europe-west9 \
             --substitutions=SHORT_SHA=${GITHUB_SHA::8}
 
   terraform:

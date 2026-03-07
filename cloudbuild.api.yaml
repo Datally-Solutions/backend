@@ -36,3 +36,7 @@ substitutions:
 
 options:
   logging: CLOUD_LOGGING_ONLY
+  pool: {}  # uses the default regional pool
+
+tags:
+  - europe-west9
