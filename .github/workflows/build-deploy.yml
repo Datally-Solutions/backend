@@ -32,7 +32,6 @@ jobs:
             --config=cloudbuild.api.yaml \
             --project=${{ secrets.GCP_PROJECT_ID }} \
             --substitutions=SHORT_SHA=${GITHUB_SHA::8} \
-            --no-source
 
   terraform:
     name: Terraform Infra
