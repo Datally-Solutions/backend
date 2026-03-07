@@ -9,7 +9,7 @@ on:
 
 jobs:
   build-api:
-    name: Build & Push API
+    name: Build API
     runs-on: ubuntu-latest
     permissions:
       contents: read
