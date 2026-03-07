@@ -235,8 +235,8 @@ def check_no_poop(cat: dict):
 
 def check_weight_change(cat: dict):
     """Compare average weight last 7 days vs previous 7 days."""
-    recent_weight = _get_avg_weight(cat["name"], days_ago_start=0, days_ago_end=7)
-    previous_weight = _get_avg_weight(cat["name"], days_ago_start=7, days_ago_end=14)
+    recent_weight = _get_avg_weight(cat["name"], days_ago_start=7, days_ago_end=0)
+    previous_weight = _get_avg_weight(cat["name"], days_ago_start=14, days_ago_end=7)
 
     if recent_weight is None or previous_weight is None:
         logging.info(f"{cat['name']}: insufficient weight data, skipping.")
