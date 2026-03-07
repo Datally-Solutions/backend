@@ -211,7 +211,7 @@ resource "google_cloud_run_service_iam_member" "scheduler_invoker" {
 
 resource "google_cloud_scheduler_job" "health_check_daily" {
   name      = "health-check-daily"
-  region    = var.GCP_REGION
+  region    = "europe-west1" #not available in paris
   schedule  = "0 9 * * *"
   time_zone = "Europe/Paris"
 
