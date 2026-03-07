@@ -1,5 +1,5 @@
-functions-framework==3.*
-google-cloud-bigquery==3.*
-google-cloud-secret-manager==2.*
-google-cloudf-firestore==2.24.0
-requests==2.*
+functions-framework==3.8.2
+google-cloud-bigquery==3.27.0
+google-cloud-secret-manager==2.22.0
+google-cloud-firestore==2.19.0
+requests==2.32.3
