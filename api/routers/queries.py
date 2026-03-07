@@ -44,7 +44,6 @@ async def daily_usage(
         for row in rows
     ]
 
-
 @router.get("/query/weekly-health", response_model=list[WeeklyHealth])
 async def weekly_health(
     weeks: Annotated[int, Query(ge=1, le=52)] = 12,
