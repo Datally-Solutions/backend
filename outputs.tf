@@ -7,3 +7,7 @@ output "function_sa_email" {
   description = "Cloud Function service account email"
   value       = google_service_account.function_sa.email
 }
+
+output "litter_api_url" {
+  value = google_cloud_run_v2_service.litter_api.uri
+}

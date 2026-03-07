@@ -1,0 +1,37 @@
+name: Deploy Litter API
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'api/**'
+      - 'cloudbuild.api.yaml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write   # Required for Workload Identity Federation
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Keyless auth via Workload Identity Federation — no SA key stored in GitHub
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.CICD_SA_EMAIL }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      # Trigger Cloud Build — all heavy lifting happens on GCP side
+      - name: Submit Cloud Build
+        run: |
+          gcloud builds submit \
+            --config=cloudbuild.api.yaml \
+            --project=${{ secrets.GCP_PROJECT_ID }} \
+            --substitutions=SHORT_SHA=${GITHUB_SHA::8} \
+            --no-source

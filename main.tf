@@ -19,6 +19,11 @@ provider "google" {
   region  = var.GCP_REGION
 }
 
+data "google_project" "project" {
+  project_id = var.GCP_PROJECT_ID
+}
+
+
 # -------------------------------------------------------
 # Service Account for Cloud Functions
 # -------------------------------------------------------
@@ -231,4 +236,65 @@ resource "google_cloud_scheduler_job" "health_check_daily" {
   retry_config {
     retry_count = 3
   }
+}
+
+resource "google_cloud_run_v2_service" "litter_api" {
+  name     = "litter-api"
+  location = var.GCP_REGION
+
+  template {
+    service_account = google_service_account.function_sa.email
+
+    containers {
+      image = "${var.GCP_REGION}-docker.pkg.dev/${var.GCP_PROJECT_ID}/${var.GCP_PROJECT_ID}-registry-docker/litter-api:latest"
+
+      ports {
+        container_port = 8080
+      }
+
+      resources {
+        limits = {
+          cpu    = "1"
+          memory = "512Mi"
+        }
+      }
+
+      env {
+        name  = "PROJECT_ID"
+        value = var.GCP_PROJECT_ID
+      }
+      env {
+        name  = "BIGQUERY_DATASET"
+        value = "litiere"
+      }
+      env {
+        name  = "BIGQUERY_TABLE"
+        value = "events"
+      }
+      env {
+        name  = "FIRESTORE_DATABASE"
+        value = var.firestore_database
+      }
+    }
+
+    scaling {
+      min_instance_count = 0
+      max_instance_count = 1
+    }
+  }
+}
+
+# Allow unauthenticated calls — auth handled by Firebase token validation in the app
+resource "google_cloud_run_v2_service_iam_member" "litter_api_public" {
+  project  = var.GCP_PROJECT_ID
+  location = var.GCP_REGION
+  name     = google_cloud_run_v2_service.litter_api.name
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+}
+
+resource "google_service_account_iam_member" "cloudbuild_sa_user" {
+  service_account_id = google_service_account.function_sa.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${data.google_project.project.number}@cloudbuild.gserviceaccount.com"
 }
