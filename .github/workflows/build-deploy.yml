@@ -1,23 +1,22 @@
-name: Deploy Litter API
+name: Deploy Backend
 
 on:
   push:
     branches: [main]
-    paths:
-      - 'api/**'
-      - 'cloudbuild.api.yaml'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
 
 jobs:
-  deploy:
+  build-api:
+    name: Build & Push API
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write   # Required for Workload Identity Federation
-
+      id-token: write
     steps:
       - uses: actions/checkout@v4
 
-      # Keyless auth via Workload Identity Federation — no SA key stored in GitHub
       - id: auth
         uses: google-github-actions/auth@v2
         with:
@@ -27,7 +26,6 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
-      # Trigger Cloud Build — all heavy lifting happens on GCP side
       - name: Submit Cloud Build
         run: |
           gcloud builds submit \
@@ -35,3 +33,17 @@ jobs:
             --project=${{ secrets.GCP_PROJECT_ID }} \
             --substitutions=SHORT_SHA=${GITHUB_SHA::8} \
             --no-source
+
+  terraform:
+    name: Terraform Infra
+    needs: build-api
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+    uses: Datally-Solutions/cicd/.github/workflows/reusable-terraform.yml@main
+    with:
+      working_directory: "."
+      state_prefix: "backend"
+      has_tfvars: "false"
+    secrets: inherit
