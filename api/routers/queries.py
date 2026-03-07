@@ -54,12 +54,12 @@ async def weekly_health(
     """Weekly event count and anomaly frequency."""
     query = f"""
         SELECT
-            DATE_TRUNC(timestamp, WEEK)      AS week,
-            COUNT(*)                          AS total_events,
+            DATE_TRUNC(DATE(timestamp), WEEK)        AS week,
+            COUNT(*)                                  AS total_events,
             COUNTIF(alerte IS NOT NULL
-                    AND alerte != '')         AS anomaly_count
+                    AND alerte != '')                 AS anomaly_count
         FROM {TABLE_REF}
-        WHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {weeks} WEEK)
+        WHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {weeks * 7} DAY)
         GROUP BY week
         ORDER BY week ASC
     """
