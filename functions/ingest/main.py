@@ -1,5 +1,4 @@
 import os
-import json
 import logging
 from datetime import datetime, timezone
 import hmac
@@ -10,14 +9,14 @@ import google.cloud.logging
 logging.basicConfig(level=logging.INFO)
 google.cloud.logging.Client().setup_logging()
 
-PROJECT_ID   = os.environ["PROJECT_ID"]
-DATASET      = os.environ["BIGQUERY_DATASET"]
-TABLE        = os.environ["BIGQUERY_TABLE"]
-TOKEN        = os.environ["INGEST_TOKEN"]
+PROJECT_ID = os.environ["PROJECT_ID"]
+DATASET = os.environ["BIGQUERY_DATASET"]
+TABLE = os.environ["BIGQUERY_TABLE"]
+TOKEN = os.environ["INGEST_TOKEN"]
 
-BQ_CLIENT  = bigquery.Client()
-FS_CLIENT  = firestore.Client(database="cat-litter-monitor-firestore")
-TABLE_REF  = f"{PROJECT_ID}.{DATASET}.{TABLE}"
+BQ_CLIENT = bigquery.Client()
+FS_CLIENT = firestore.Client(database="cat-litter-monitor-firestore")
+TABLE_REF = f"{PROJECT_ID}.{DATASET}.{TABLE}"
 
 
 def _get_or_create_household(device_id: str) -> str:
@@ -30,25 +29,25 @@ def _get_or_create_household(device_id: str) -> str:
         return snap[0].id
 
     # Create new household for this device
-    import random, string
-    join_code = ''.join(random.choices('ABCDEFGHJKLMNPQRSTUVWXYZ23456789', k=6))
-    ref = households.add({
-        "device_id":    device_id,
-        "join_code":    join_code,
-        "member_uids":  [],
-        "admin_uid":    "",
-        "cat_names":    [],
-        "created_at":   firestore.SERVER_TIMESTAMP,
-    })
+    import random
+
+    join_code = "".join(random.choices("ABCDEFGHJKLMNPQRSTUVWXYZ23456789", k=6))
+    ref = households.add(
+        {
+            "device_id": device_id,
+            "join_code": join_code,
+            "member_uids": [],
+            "admin_uid": "",
+            "cat_names": [],
+            "created_at": firestore.SERVER_TIMESTAMP,
+        }
+    )
     logging.info(f"Created new household {ref[1].id} for device {device_id}")
     return ref[1].id
 
 
 def _validate_token(request) -> bool:
-    token = (
-        request.headers.get("X-Ingest-Token")
-        or request.args.get("token")
-    )
+    token = request.headers.get("X-Ingest-Token") or request.args.get("token")
     if not token:
         return False
     return hmac.compare_digest(token, TOKEN)
@@ -60,14 +59,14 @@ def _parse_payload(request) -> dict | None:
         if not data:
             return None
         return {
-            "timestamp":  datetime.now(timezone.utc).isoformat(),
-            "device_id":  str(data.get("device_id", "default-device")),
-            "chat":       str(data["chat"]),
-            "action":     str(data["action"]),
-            "poids":      float(data.get("poids", 0)),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "device_id": str(data.get("device_id", "default-device")),
+            "chat": str(data["chat"]),
+            "action": str(data["action"]),
+            "poids": float(data.get("poids", 0)),
             "poids_chat": float(data.get("poids_chat", 0)),
-            "duree":      int(data.get("duree", 0)),
-            "alerte":     str(data.get("alerte", "")) or None,
+            "duree": int(data.get("duree", 0)),
+            "alerte": str(data.get("alerte", "")) or None,
         }
     except (KeyError, ValueError, TypeError) as e:
         logging.error(f"Payload parsing error: {e}")
@@ -90,46 +89,55 @@ def _write_to_firestore(row: dict, household_id: str):
     else:
         status = "clean"
 
-    household_ref.collection("box_state").document("current").set({
-        "status":            status,
-        "last_used":         ts,
-        "fill_percent":      fill_percent,
-        "last_action":       row["action"],
-        "last_cat":          row["chat"],
-        "usages_since_clean": firestore.Increment(1),
-        "last_cleaned":      firestore.SERVER_TIMESTAMP,  # only on first set
-    }, merge=True)
+    household_ref.collection("box_state").document("current").set(
+        {
+            "status": status,
+            "last_used": ts,
+            "fill_percent": fill_percent,
+            "last_action": row["action"],
+            "last_cat": row["chat"],
+            "usages_since_clean": firestore.Increment(1),
+            "last_cleaned": firestore.SERVER_TIMESTAMP,  # only on first set
+        },
+        merge=True,
+    )
 
     # On cleaning action, reset counter
     if "nettoy" in row["action"].lower() or "clean" in row["action"].lower():
-        household_ref.collection("box_state").document("current").update({
-            "usages_since_clean": 0,
-            "last_cleaned": ts,
-            "status": "clean",
-        })
+        household_ref.collection("box_state").document("current").update(
+            {
+                "usages_since_clean": 0,
+                "last_cleaned": ts,
+                "status": "clean",
+            }
+        )
 
     # ── 2. Add event to recent events ─────────────────────────────────────────
-    household_ref.collection("events").add({
-        "timestamp":        ts,
-        "cat_id":           row["chat"].lower(),
-        "cat_name":         row["chat"],
-        "action":           row["action"],
-        "weight_delta_g":   row["poids"],
-        "cat_weight_kg":    row["poids_chat"],
-        "duration_seconds": row["duree"],
-        "anomaly":          bool(alerte),
-    })
+    household_ref.collection("events").add(
+        {
+            "timestamp": ts,
+            "cat_id": row["chat"].lower(),
+            "cat_name": row["chat"],
+            "action": row["action"],
+            "weight_delta_g": row["poids"],
+            "cat_weight_kg": row["poids_chat"],
+            "duration_seconds": row["duree"],
+            "anomaly": bool(alerte),
+        }
+    )
 
     # ── 3. Write health alert if needed ───────────────────────────────────────
     if alerte:
-        household_ref.collection("health_alerts").add({
-            "timestamp":    ts,
-            "cat_id":       row["chat"].lower(),
-            "title":        f"Alerte détectée — {row['chat']}",
-            "description":  alerte,
-            "severity":     "warning",
-            "acknowledged": False,
-        })
+        household_ref.collection("health_alerts").add(
+            {
+                "timestamp": ts,
+                "cat_id": row["chat"].lower(),
+                "title": f"Alerte détectée — {row['chat']}",
+                "description": alerte,
+                "severity": "warning",
+                "acknowledged": False,
+            }
+        )
         logging.info(f"Health alert written for {row['chat']}: {alerte}")
 
 
@@ -137,10 +145,14 @@ def _write_to_firestore(row: dict, household_id: str):
 def ingest_litter_event(request):
     # CORS preflight
     if request.method == "OPTIONS":
-        return ("", 204, {
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Headers": "X-Ingest-Token, Content-Type",
-        })
+        return (
+            "",
+            204,
+            {
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Headers": "X-Ingest-Token, Content-Type",
+            },
+        )
 
     # Auth
     if not _validate_token(request):
@@ -168,5 +180,11 @@ def ingest_litter_event(request):
     except Exception as e:
         logging.error(f"Firestore write error: {e}")
 
-    logging.info(f"Event inserted: {row['chat']} - {row['action']} (household: {household_id})")
-    return {"status": "ok", "timestamp": row["timestamp"], "household_id": household_id}, 200
+    logging.info(
+        f"Event inserted: {row['chat']} - {row['action']} (household: {household_id})"
+    )
+    return {
+        "status": "ok",
+        "timestamp": row["timestamp"],
+        "household_id": household_id,
+    }, 200

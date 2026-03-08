@@ -5,8 +5,11 @@ from fastapi import APIRouter, Depends, Query
 from google.cloud import bigquery
 
 from dependencies import (
-    PROJECT_ID, BIGQUERY_DATASET, BIGQUERY_TABLE,
-    get_bq_client, get_current_uid, get_household_id,
+    PROJECT_ID,
+    BIGQUERY_DATASET,
+    BIGQUERY_TABLE,
+    get_bq_client,
+    get_current_uid,
 )
 from models import DailyUsage, WeeklyHealth
 
@@ -43,6 +46,7 @@ async def daily_usage(
         )
         for row in rows
     ]
+
 
 @router.get("/query/weekly-health", response_model=list[WeeklyHealth])
 async def weekly_health(

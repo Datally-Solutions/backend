@@ -6,10 +6,10 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from google.cloud import bigquery, firestore
 from firebase_admin import auth as firebase_auth
 
-PROJECT_ID       = os.environ["PROJECT_ID"]
+PROJECT_ID = os.environ["PROJECT_ID"]
 BIGQUERY_DATASET = os.environ["BIGQUERY_DATASET"]
-BIGQUERY_TABLE   = os.environ["BIGQUERY_TABLE"]
-FIRESTORE_DB     = os.environ.get("FIRESTORE_DATABASE", "(default)")
+BIGQUERY_TABLE = os.environ["BIGQUERY_TABLE"]
+FIRESTORE_DB = os.environ.get("FIRESTORE_DATABASE", "(default)")
 
 security = HTTPBearer()
 

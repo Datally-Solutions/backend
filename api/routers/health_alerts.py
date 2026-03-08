@@ -54,9 +54,7 @@ async def acknowledge_alert(
     fs: firestore.Client = Depends(get_fs_client),
 ):
     """Mark a health alert as acknowledged."""
-    fs.collection("households") \
-        .document(household_id) \
-        .collection("health_alerts") \
-        .document(alert_id) \
-        .update({"acknowledged": True})
+    fs.collection("households").document(household_id).collection(
+        "health_alerts"
+    ).document(alert_id).update({"acknowledged": True})
     return {"status": "ok", "alert_id": alert_id}

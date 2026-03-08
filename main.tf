@@ -48,7 +48,7 @@ resource "google_project_iam_custom_role" "function_role" {
     "bigquery.tables.updateData",
     "bigquery.jobs.create",
     "bigquery.tables.getData",
-    "bigquery.jobs.get",   
+    "bigquery.jobs.get",
 
     # Firestore
     "datastore.entities.create",
@@ -131,10 +131,10 @@ resource "google_cloudfunctions2_function" "ingest" {
     service_account_email            = google_service_account.function_sa.email
 
     environment_variables = {
-      PROJECT_ID          = var.GCP_PROJECT_ID
-      BIGQUERY_DATASET    = "litiere"
-      BIGQUERY_TABLE      = "events"
-      FIRESTORE_DATABASE  = var.firestore_database
+      PROJECT_ID         = var.GCP_PROJECT_ID
+      BIGQUERY_DATASET   = "litiere"
+      BIGQUERY_TABLE     = "events"
+      FIRESTORE_DATABASE = var.firestore_database
     }
 
     secret_environment_variables {

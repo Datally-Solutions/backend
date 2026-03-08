@@ -1,7 +1,6 @@
 import os
-import json
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 import google.cloud.logging
 
 import functions_framework
@@ -13,8 +12,8 @@ logging.basicConfig(level=logging.INFO)
 google.cloud.logging.Client().setup_logging()
 
 PROJECT_ID = os.environ["PROJECT_ID"]
-DATASET    = os.environ["BIGQUERY_DATASET"]
-TABLE      = os.environ["BIGQUERY_TABLE"]
+DATASET = os.environ["BIGQUERY_DATASET"]
+TABLE = os.environ["BIGQUERY_TABLE"]
 
 BQ_CLIENT = bigquery.Client()
 FS_CLIENT = firestore.Client(database=os.environ.get("FIRESTORE_DATABASE", "(default)"))
@@ -23,16 +22,17 @@ if not firebase_admin._apps:
     firebase_admin.initialize_app()
 
 # ─── Thresholds ───────────────────────────────────────────────────────────────
-NO_PEE_HOURS        = 24
-NO_POOP_HOURS       = 48
-WEIGHT_CHANGE_PCT   = 10.0   # % change over last 7 days vs previous 7 days
+NO_PEE_HOURS = 24
+NO_POOP_HOURS = 48
+WEIGHT_CHANGE_PCT = 10.0  # % change over last 7 days vs previous 7 days
 
 # Actions considered as pee or poop
-PEE_ACTIONS  = ["pipi", "gros pipi", "petit pipi"]
+PEE_ACTIONS = ["pipi", "gros pipi", "petit pipi"]
 POOP_ACTIONS = ["caca"]
 
 
 # ─── BigQuery helpers ─────────────────────────────────────────────────────────
+
 
 def _hours_since_last_action(cat_name: str, action_keywords: list[str]) -> float | None:
     """Returns hours since last matching action for a cat, or None if never."""
@@ -45,9 +45,11 @@ def _hours_since_last_action(cat_name: str, action_keywords: list[str]) -> float
         WHERE LOWER(chat) = LOWER(@cat_name)
           AND ({keywords_filter})
     """
-    job_config = bigquery.QueryJobConfig(query_parameters=[
-        bigquery.ScalarQueryParameter("cat_name", "STRING", cat_name),
-    ])
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("cat_name", "STRING", cat_name),
+        ]
+    )
     rows = list(BQ_CLIENT.query(query, job_config=job_config).result())
     if not rows or rows[0].last_action is None:
         return None
@@ -55,7 +57,9 @@ def _hours_since_last_action(cat_name: str, action_keywords: list[str]) -> float
     return (datetime.now(timezone.utc) - last).total_seconds() / 3600
 
 
-def _get_avg_weight(cat_name: str, days_ago_start: int, days_ago_end: int) -> float | None:
+def _get_avg_weight(
+    cat_name: str, days_ago_start: int, days_ago_end: int
+) -> float | None:
     """Returns average cat weight over a time window."""
     query = f"""
         SELECT AVG(poids_chat) as avg_weight
@@ -65,9 +69,11 @@ def _get_avg_weight(cat_name: str, days_ago_start: int, days_ago_end: int) -> fl
           AND timestamp < TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {days_ago_end} DAY)
           AND poids_chat > 0
     """
-    job_config = bigquery.QueryJobConfig(query_parameters=[
-        bigquery.ScalarQueryParameter("cat_name", "STRING", cat_name),
-    ])
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("cat_name", "STRING", cat_name),
+        ]
+    )
     rows = list(BQ_CLIENT.query(query, job_config=job_config).result())
     if not rows or rows[0].avg_weight is None:
         return None
@@ -91,17 +97,22 @@ def _get_cats() -> list[dict]:
             rows = list(BQ_CLIENT.query(query).result())
             cat_names = [row.chat for row in rows]
         for cat_name in cat_names:
-            cats.append({
-                "name": cat_name,
-                "household_id": household_id,
-                "member_uids": data.get("member_uids", []),
-            })
+            cats.append(
+                {
+                    "name": cat_name,
+                    "household_id": household_id,
+                    "member_uids": data.get("member_uids", []),
+                }
+            )
     return cats
 
 
 # ─── Alert helpers ────────────────────────────────────────────────────────────
 
-def _alert_already_sent_today(household_id: str, cat_name: str, alert_type: str) -> bool:
+
+def _alert_already_sent_today(
+    household_id: str, cat_name: str, alert_type: str
+) -> bool:
     """Avoid sending the same alert twice in one day."""
     today_start = datetime.now(timezone.utc).replace(
         hour=0, minute=0, second=0, microsecond=0
@@ -119,22 +130,29 @@ def _alert_already_sent_today(household_id: str, cat_name: str, alert_type: str)
     return len(snap) > 0
 
 
-def _write_alert(household_id: str, cat_name: str, alert_type: str,
-                 title: str, description: str, severity: str):
-    FS_CLIENT.collection("households") \
-        .document(household_id) \
-        .collection("health_alerts") \
-        .add({
-            "timestamp":    datetime.now(timezone.utc),
-            "cat_id":       cat_name.lower(),
-            "cat_name":     cat_name,
-            "alert_type":   alert_type,
-            "title":        title,
-            "description":  description,
-            "severity":     severity,
+def _write_alert(
+    household_id: str,
+    cat_name: str,
+    alert_type: str,
+    title: str,
+    description: str,
+    severity: str,
+):
+    FS_CLIENT.collection("households").document(household_id).collection(
+        "health_alerts"
+    ).add(
+        {
+            "timestamp": datetime.now(timezone.utc),
+            "cat_id": cat_name.lower(),
+            "cat_name": cat_name,
+            "alert_type": alert_type,
+            "title": title,
+            "description": description,
+            "severity": severity,
             "acknowledged": False,
-            "source":       "health_checker",
-        })
+            "source": "health_checker",
+        }
+    )
     logging.info(f"Alert written: [{severity}] {title}")
 
 
@@ -148,41 +166,49 @@ def _send_fcm(member_uids: list[str], title: str, description: str, severity: st
         if not token:
             continue
         try:
-            messaging.send(messaging.Message(
-                token=token,
-                notification=messaging.Notification(
-                    title=title,
-                    body=description[:120] + "…" if len(description) > 120 else description,
-                ),
-                data={
-                    "type":     "health_alert",
-                    "severity": severity,
-                },
-                android=messaging.AndroidConfig(
-                    priority="high",
-                    notification=messaging.AndroidNotification(
-                        channel_id="health_alerts",
-                        priority="max" if severity == "critical" else "high",
+            messaging.send(
+                messaging.Message(
+                    token=token,
+                    notification=messaging.Notification(
+                        title=title,
+                        body=description[:120] + "…"
+                        if len(description) > 120
+                        else description,
                     ),
-                ),
-                apns=messaging.APNSConfig(
-                    payload=messaging.APNSPayload(
-                        aps=messaging.Aps(sound="default", badge=1)
-                    )
-                ),
-            ))
+                    data={
+                        "type": "health_alert",
+                        "severity": severity,
+                    },
+                    android=messaging.AndroidConfig(
+                        priority="high",
+                        notification=messaging.AndroidNotification(
+                            channel_id="health_alerts",
+                            priority="max" if severity == "critical" else "high",
+                        ),
+                    ),
+                    apns=messaging.APNSConfig(
+                        payload=messaging.APNSPayload(
+                            aps=messaging.Aps(sound="default", badge=1)
+                        )
+                    ),
+                )
+            )
             logging.info(f"FCM sent to uid {uid}")
         except Exception as e:
             logging.error(f"FCM error for uid {uid}: {e}")
 
 
-def _process_alert(cat: dict, alert_type: str, title: str, description: str, severity: str):
+def _process_alert(
+    cat: dict, alert_type: str, title: str, description: str, severity: str
+):
     """Write alert + send FCM if not already sent today."""
     household_id = cat["household_id"]
-    cat_name     = cat["name"]
+    cat_name = cat["name"]
 
     if _alert_already_sent_today(household_id, cat_name, alert_type):
-        logging.info(f"Alert [{alert_type}] already sent today for {cat_name}, skipping.")
+        logging.info(
+            f"Alert [{alert_type}] already sent today for {cat_name}, skipping."
+        )
         return
 
     _write_alert(household_id, cat_name, alert_type, title, description, severity)
@@ -190,6 +216,7 @@ def _process_alert(cat: dict, alert_type: str, title: str, description: str, sev
 
 
 # ─── Health rules ─────────────────────────────────────────────────────────────
+
 
 def check_no_pee(cat: dict):
     hours = _hours_since_last_action(cat["name"], PEE_ACTIONS)
@@ -243,7 +270,7 @@ def check_weight_change(cat: dict):
         return
 
     change_pct = abs(recent_weight - previous_weight) / previous_weight * 100
-    direction  = "perdu" if recent_weight < previous_weight else "pris"
+    direction = "perdu" if recent_weight < previous_weight else "pris"
 
     logging.info(
         f"{cat['name']}: weight {previous_weight:.2f}kg → {recent_weight:.2f}kg "
@@ -268,6 +295,7 @@ def check_weight_change(cat: dict):
 
 # ─── Main handler ─────────────────────────────────────────────────────────────
 
+
 @functions_framework.http
 def health_checker(request):
     """Triggered by Cloud Scheduler via HTTP."""
@@ -280,7 +308,9 @@ def health_checker(request):
 
     results = []
     for cat in cats:
-        logging.info(f"Checking health for {cat['name']} (household: {cat['household_id']})")
+        logging.info(
+            f"Checking health for {cat['name']} (household: {cat['household_id']})"
+        )
         try:
             check_no_pee(cat)
             check_no_poop(cat)

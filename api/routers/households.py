@@ -46,9 +46,9 @@ async def join_household(
         raise HTTPException(status_code=404, detail="Household not found")
 
     doc = snap[0]
-    fs.collection("households").document(doc.id).update({
-        "member_uids": firestore.ArrayUnion([uid])
-    })
+    fs.collection("households").document(doc.id).update(
+        {"member_uids": firestore.ArrayUnion([uid])}
+    )
     data = doc.to_dict()
     return HouseholdInfo(
         id=doc.id,
