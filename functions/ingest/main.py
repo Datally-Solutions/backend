@@ -77,38 +77,45 @@ def _write_to_firestore(row: dict, household_id: str):
     """Write live state + recent event to Firestore."""
     household_ref = FS_CLIENT.collection("households").document(household_id)
     ts = datetime.fromisoformat(row["timestamp"])
+    box_ref = household_ref.collection("box_state").document("current")
 
     # ── 1. Update live box_state ──────────────────────────────────────────────
     alerte = row.get("alerte")
-    fill_percent = min(max(row["poids"] / 500.0, 0.0), 1.0)  # rough estimate
+    is_cleaning = "nettoy" in row["action"].lower() or "clean" in row["action"].lower()
 
-    if alerte:
-        status = "needs_clean"
-    elif row["action"].lower() in ("simple visite", "simple visit"):
+    if is_cleaning:
         status = "clean"
+    elif alerte:
+        status = "needs_clean"
     else:
         status = "clean"
 
-    household_ref.collection("box_state").document("current").set(
+    # Base update — always applied
+    box_ref.set(
         {
             "status": status,
             "last_used": ts,
-            "fill_percent": fill_percent,
             "last_action": row["action"],
             "last_cat": row["chat"],
             "usages_since_clean": firestore.Increment(1),
-            "last_cleaned": firestore.SERVER_TIMESTAMP,  # only on first set
+            "fill_percent": firestore.Increment(row["poids"] / 500.0),
         },
         merge=True,
     )
 
-    # On cleaning action, reset counter
-    if "nettoy" in row["action"].lower() or "clean" in row["action"].lower():
-        household_ref.collection("box_state").document("current").update(
+    # Initialize last_cleaned only if document is new
+    doc = box_ref.get()
+    if not doc.exists or "last_cleaned" not in doc.to_dict():
+        box_ref.update({"last_cleaned": ts})
+
+    # On cleaning action, reset counters
+    if is_cleaning:
+        box_ref.update(
             {
                 "usages_since_clean": 0,
                 "last_cleaned": ts,
                 "status": "clean",
+                "fill_percent": 0.0,
             }
         )
 
@@ -133,10 +140,14 @@ def _write_to_firestore(row: dict, household_id: str):
             {
                 "timestamp": ts,
                 "cat_id": row["chat"].lower(),
+                "cat_name": row["chat"],
+                "alert_type": "anomaly",
                 "title": f"Alerte détectée — {row['chat']}",
                 "description": alerte,
                 "severity": "warning",
                 "acknowledged": False,
+                "source": "litter_ingest",
+                "expire_at": datetime.now(timezone.utc) + timedelta(days=365),  # TTL
             }
         )
         logging.info(f"Health alert written for {row['chat']}: {alerte}")
