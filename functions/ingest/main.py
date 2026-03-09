@@ -3,6 +3,7 @@ import logging
 from datetime import datetime, timezone
 import hmac
 import functions_framework
+import timedelta
 from google.cloud import bigquery, firestore
 import google.cloud.logging
 
@@ -123,6 +124,7 @@ def _write_to_firestore(row: dict, household_id: str):
             "cat_weight_kg": row["poids_chat"],
             "duration_seconds": row["duree"],
             "anomaly": bool(alerte),
+            "expire_at": ts + timedelta(days=90),  # TTL
         }
     )
 

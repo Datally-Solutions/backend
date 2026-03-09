@@ -1,6 +1,6 @@
 import os
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import google.cloud.logging
 
 import functions_framework
@@ -151,6 +151,7 @@ def _write_alert(
             "severity": severity,
             "acknowledged": False,
             "source": "health_checker",
+            "expire_at": datetime.now(timezone.utc) + timedelta(days=365),  # TTL
         }
     )
     logging.info(f"Alert written: [{severity}] {title}")
