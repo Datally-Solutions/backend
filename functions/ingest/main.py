@@ -1,9 +1,8 @@
 import os
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import hmac
 import functions_framework
-import timedelta
 from google.cloud import bigquery, firestore
 import google.cloud.logging
 
