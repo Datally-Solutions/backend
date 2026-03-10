@@ -179,6 +179,7 @@ def _write_to_firestore(
             "last_used": ts,
             "last_action": action,
             "last_cat": cat_name,
+            "last_seen": datetime.now(timezone.utc),
             "usages_since_clean": firestore.Increment(1),
             "fill_percent": firestore.Increment(row["exit_weight_delta_g"] / 500.0),
         },
