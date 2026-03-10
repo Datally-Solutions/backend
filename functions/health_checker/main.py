@@ -81,25 +81,30 @@ def _get_avg_weight(
 
 
 def _get_cats() -> list[dict]:
-    """Get all unique cats and their household_id from Firestore."""
+    """Get all cats and their household_id from Firestore."""
     cats = []
     households = FS_CLIENT.collection("households").stream()
     for household in households:
         data = household.to_dict()
         household_id = household.id
-        cat_names = data.get("cat_names", [])
-        # If no cat_names registered yet, get from BigQuery
-        if not cat_names:
+
+        # Read from new cats array
+        raw_cats = data.get("cats", [])
+
+        # Last resort — query BigQuery
+        if not raw_cats:
             query = f"""
                 SELECT DISTINCT chat
                 FROM `{PROJECT_ID}.{DATASET}.{TABLE}`
             """
             rows = list(BQ_CLIENT.query(query).result())
-            cat_names = [row.chat for row in rows]
-        for cat_name in cat_names:
+            raw_cats = [{"name": row.chat, "weight_kg": 0} for row in rows]
+
+        for cat in raw_cats:
             cats.append(
                 {
-                    "name": cat_name,
+                    "name": cat["name"],
+                    "weight_kg": cat.get("weight_kg", 0),
                     "household_id": household_id,
                     "member_uids": data.get("member_uids", []),
                 }

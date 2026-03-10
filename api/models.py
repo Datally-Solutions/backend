@@ -28,11 +28,17 @@ class HealthAlert(BaseModel):
     source: Optional[str] = None
 
 
+class CatInfo(BaseModel):
+    name: str
+    weight_kg: float = 0.0
+
+
 class HouseholdInfo(BaseModel):
     id: str
     join_code: str
     device_id: Optional[str] = None
     cat_names: list[str]
+    cats: list[CatInfo] = []
     member_uids: list[str]
     admin_uid: Optional[str] = None
 

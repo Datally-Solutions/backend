@@ -3,10 +3,19 @@ from fastapi import APIRouter, Depends, HTTPException
 from google.cloud import firestore
 
 from dependencies import get_fs_client, get_current_uid, get_household_id
-from models import HouseholdInfo, BoxState
+from models import HouseholdInfo, BoxState, CatInfo
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+# helper to parse cats from Firestore data
+def _parse_cats(data: dict) -> tuple[list, list[str]]:
+    raw_cats = data.get("cats", [])
+    cats = [CatInfo(name=c["name"], weight_kg=c.get("weight_kg", 0)) for c in raw_cats]
+    # fallback to cat_names if cats is empty
+    cat_names = [c.name for c in cats] if cats else data.get("cat_names", [])
+    return cats, cat_names
 
 
 @router.get("/households/me", response_model=HouseholdInfo)
@@ -19,11 +28,13 @@ async def get_my_household(
     if not doc.exists:
         raise HTTPException(status_code=404, detail="Household not found")
     data = doc.to_dict()
+    cats, cat_names = _parse_cats(data)
     return HouseholdInfo(
         id=doc.id,
         join_code=data.get("join_code", ""),
         device_id=data.get("device_id"),
-        cat_names=data.get("cat_names", []),
+        cat_names=cat_names,
+        cats=cats,
         member_uids=data.get("member_uids", []),
         admin_uid=data.get("admin_uid"),
     )
@@ -50,11 +61,13 @@ async def join_household(
         {"member_uids": firestore.ArrayUnion([uid])}
     )
     data = doc.to_dict()
+    cats, cat_names = _parse_cats(data)
     return HouseholdInfo(
         id=doc.id,
         join_code=data.get("join_code", ""),
         device_id=data.get("device_id"),
-        cat_names=data.get("cat_names", []),
+        cat_names=cat_names,
+        cats=cats,
         member_uids=list(set(data.get("member_uids", []) + [uid])),
         admin_uid=data.get("admin_uid"),
     )
