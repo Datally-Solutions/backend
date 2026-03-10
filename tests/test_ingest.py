@@ -1,12 +1,26 @@
+import importlib.util
 import sys
 import os
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "functions", "ingest"))
+
+def load_module(name, path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
 
 # ─── Import functions to test ─────────────────────────────────────────────────
 # We import only pure functions — no GCP clients instantiated
-from main import _identify_cat, _classify_action, _parse_payload
+ingest = load_module(
+    "ingest_main",
+    os.path.join(os.path.dirname(__file__), "..", "functions", "ingest", "main.py"),
+)
 
+_identify_cat = ingest._identify_cat
+_classify_action = ingest._classify_action
+_parse_payload = ingest._parse_payload
 # ─── _identify_cat ────────────────────────────────────────────────────────────
 
 CATS = [
