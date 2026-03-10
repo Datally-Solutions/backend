@@ -8,6 +8,19 @@ on:
   workflow_dispatch:
 
 jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.11
+      - name: Install dependencies
+        run: |
+          pip install pytest pytest-cov
+      - name: Run tests
+        run: pytest tests/ -v --cov=main --cov-report=term-missing
   check-api-changes:
     runs-on: ubuntu-latest
     outputs:
@@ -24,7 +37,7 @@ jobs:
 
   build-api:
     name: Build API
-    needs: check-api-changes
+    needs: [check-api-changes, unit-tests]
     if: needs.check-api-changes.outputs.changed == 'true'
     runs-on: ubuntu-latest
     permissions:

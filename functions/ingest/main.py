@@ -4,25 +4,47 @@ from datetime import datetime, timedelta, timezone
 import hmac
 import functions_framework
 from google.cloud import bigquery, firestore
-import google.cloud.logging
 
+# ─── Logging ──────────────────────────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO)
-google.cloud.logging.Client().setup_logging()
 
-PROJECT_ID = os.environ["PROJECT_ID"]
-DATASET = os.environ["BIGQUERY_DATASET"]
-TABLE = os.environ["BIGQUERY_TABLE"]
-TOKEN = os.environ["INGEST_TOKEN"]
+# Only set up GCP logging in production
+if os.environ.get("K_SERVICE"):  # K_SERVICE is set by Cloud Run/Functions
+    import google.cloud.logging
 
-BQ_CLIENT = bigquery.Client()
-FS_CLIENT = firestore.Client(database="cat-litter-monitor-firestore")
+    google.cloud.logging.Client().setup_logging()
+
+# ─── Config ───────────────────────────────────────────────────────────────────
+PROJECT_ID = os.environ.get("PROJECT_ID", "test-project")
+DATASET = os.environ.get("BIGQUERY_DATASET", "test-dataset")
+TABLE = os.environ.get("BIGQUERY_TABLE", "test-table")
+TOKEN = os.environ.get("INGEST_TOKEN", "test-token")
 TABLE_REF = f"{PROJECT_ID}.{DATASET}.{TABLE}"
+
+# ─── Lazy GCP clients ─────────────────────────────────────────────────────────
+_BQ_CLIENT = None
+_FS_CLIENT = None
+
+
+def get_bq_client():
+    global _BQ_CLIENT
+    if _BQ_CLIENT is None:
+        _BQ_CLIENT = bigquery.Client()
+    return _BQ_CLIENT
+
+
+def get_fs_client():
+    global _FS_CLIENT
+    if _FS_CLIENT is None:
+        _FS_CLIENT = firestore.Client(database="cat-litter-monitor-firestore")
+    return _FS_CLIENT
 
 
 def _get_household(device_id: str) -> tuple[str, dict] | None:
     """Find household by device_id. Returns (household_id, data) or None."""
     snap = (
-        FS_CLIENT.collection("households")
+        get_fs_client()
+        .collection("households")
         .where("device_id", "==", device_id)
         .limit(1)
         .get()
@@ -134,7 +156,7 @@ def _write_to_firestore(
     row: dict, household_id: str, cat: dict | None, action: str, alerte: str | None
 ):
     """Write live state + recent event to Firestore."""
-    household_ref = FS_CLIENT.collection("households").document(household_id)
+    household_ref = get_fs_client().collection("households").document(household_id)
     ts = datetime.fromisoformat(row["timestamp"])
     box_ref = household_ref.collection("box_state").document("current")
 
@@ -226,7 +248,7 @@ def _write_to_bigquery(row: dict, cat: dict | None, action: str, alerte: str | N
         "duree": row["duration_seconds"],
         "alerte": alerte or "",
     }
-    errors = BQ_CLIENT.insert_rows_json(TABLE_REF, [bq_row])
+    errors = get_bq_client().insert_rows_json(TABLE_REF, [bq_row])
     if errors:
         logging.error(f"BigQuery insert errors: {errors}")
         raise Exception(f"BigQuery insert failed: {errors}")
