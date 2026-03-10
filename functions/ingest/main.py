@@ -222,7 +222,7 @@ def _write_to_bigquery(row: dict, cat: dict | None, action: str, alerte: str | N
         "chat": cat_name,
         "action": action,
         "poids": row["exit_weight_delta_g"],
-        "poids_chat": cat["weight_kg"] if cat else 0,
+        "poids_chat": row["entry_weight_kg"],
         "duree": row["duration_seconds"],
         "alerte": alerte or "",
     }
