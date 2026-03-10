@@ -46,6 +46,7 @@ class HouseholdInfo(BaseModel):
 class BoxState(BaseModel):
     status: str
     last_used: Optional[datetime] = None
+    last_seen: Optional[datetime] = None
     fill_percent: float
     last_action: Optional[str] = None
     last_cat: Optional[str] = None
