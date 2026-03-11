@@ -16,9 +16,7 @@ DATASET = os.environ["BIGQUERY_DATASET"]
 TABLE = os.environ["BIGQUERY_TABLE"]
 
 BQ_CLIENT = bigquery.Client()
-FS_CLIENT = firestore.Client(
-    database=os.environ.get("cat-litter-monitor-firestore", "(default)")
-)
+FS_CLIENT = firestore.Client(database=os.environ.get("FIRESTORE_DATABASE", "(default)"))
 
 if not firebase_admin._apps:
     firebase_admin.initialize_app()
